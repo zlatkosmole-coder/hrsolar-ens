@@ -1,0 +1,81 @@
+name: backfill
+on:
+  workflow_dispatch:
+    inputs:
+      start: {description: "first run day (YYYY-MM-DD)", required: true, default: "2024-03-01"}
+      end: {description: "last run day (YYYY-MM-DD, inclusive)", required: true}
+      chunk_days: {description: "days per job", required: false, default: "30"}
+permissions:
+  contents: write
+concurrency:
+  group: ens-data
+  cancel-in-progress: false
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      chunks: ${{ steps.plan.outputs.chunks }}
+    steps:
+      - id: plan
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import datetime as dt, json
+          s=dt.date.fromisoformat("${{ inputs.start }}"); e=dt.date.fromisoformat("${{ inputs.end }}"); n=int("${{ inputs.chunk_days }}")
+          chunks=[]; d=s
+          while d<=e:
+              f=min(e, d+dt.timedelta(days=n-1)); chunks.append({"start":d.isoformat(),"end":f.isoformat()}); d=f+dt.timedelta(days=1)
+          print("chunks="+json.dumps(chunks))
+          PY
+  fetch:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      max-parallel: 4
+      fail-fast: false
+      matrix:
+        chunk: ${{ fromJson(needs.plan.outputs.chunks) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - run: pip install -r requirements.txt
+      - run: python ens_fetch.py --start ${{ matrix.chunk.start }} --end ${{ matrix.chunk.end }} --out out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ens-${{ matrix.chunk.start }}
+          path: out
+          retention-days: 14
+  merge:
+    needs: fetch
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with: {path: parts}
+      - name: merge the chunks into data/
+        run: |
+          python3 - <<'PY'
+          import pandas as pd, glob, os
+          os.makedirs("data", exist_ok=True)
+          by = {}
+          for f in sorted(glob.glob("parts/*/ens_*.parquet")):
+              by.setdefault(os.path.basename(f), []).append(pd.read_parquet(f))
+          for name, parts in by.items():
+              dst = os.path.join("data", name)
+              frames = parts + ([pd.read_parquet(dst)] if os.path.exists(dst) else [])
+              df = pd.concat(frames, ignore_index=True).drop_duplicates(["run","step","param","point","member"], keep="first")
+              df.sort_values(["run","step","param","point","member"]).to_parquet(dst, index=False)
+              print(name, len(df), "rows", df["run"].nunique(), "days")
+          PY
+      - name: commit
+        run: |
+          git config user.name "hrsolar-ens"
+          git config user.email "actions@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || git commit -m "backfill ${{ inputs.start }}..${{ inputs.end }}"
+          git pull --rebase --quiet && git push --quiet

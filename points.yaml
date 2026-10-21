@@ -1,0 +1,26 @@
+# Points at which the ENS members are read (nearest 0.25-degree cell). The 20 national points are
+# approximate town centres (same as the hrsolar track); plant_1 and plant_2 are the grid cells that
+# contain two reference plants, given as cell centres only.
+points:
+  - {id: zagreb,         lat: 45.8150, lon: 15.9819}
+  - {id: varazdin,       lat: 46.3057, lon: 16.3366}
+  - {id: karlovac,       lat: 45.4929, lon: 15.5553}
+  - {id: bjelovar,       lat: 45.8986, lon: 16.8423}
+  - {id: osijek,         lat: 45.5550, lon: 18.6955}
+  - {id: slavonski_brod, lat: 45.1603, lon: 18.0156}
+  - {id: vinkovci,       lat: 45.2883, lon: 18.8047}
+  - {id: pozega,         lat: 45.3403, lon: 17.6853}
+  - {id: pula,           lat: 44.8666, lon: 13.8496}
+  - {id: pazin,          lat: 45.2403, lon: 13.9367}
+  - {id: rijeka,         lat: 45.3271, lon: 14.4422}
+  - {id: krk,            lat: 45.0261, lon: 14.5753}
+  - {id: zadar,          lat: 44.1194, lon: 15.2314}
+  - {id: sibenik,        lat: 43.7350, lon: 15.8952}
+  - {id: knin,           lat: 44.0406, lon: 16.1975}
+  - {id: gospic,         lat: 44.5461, lon: 15.3747}
+  - {id: split,          lat: 43.5081, lon: 16.4402}
+  - {id: sinj,           lat: 43.7036, lon: 16.6394}
+  - {id: makarska,       lat: 43.2969, lon: 17.0178}
+  - {id: dubrovnik,      lat: 42.6507, lon: 18.0944}
+  - {id: plant_1,        lat: 45.50,   lon: 15.25}
+  - {id: plant_2,        lat: 46.00,   lon: 16.00}

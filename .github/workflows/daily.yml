@@ -1,0 +1,31 @@
+name: daily
+on:
+  schedule:
+    - cron: "5 8 * * *"     # 08:05 UTC: the 00z ENS steps appear on the bucket about 07:40 UTC
+    - cron: "45 8 * * *"    # second try (a day already complete is skipped)
+    - cron: "30 11 * * *"   # third try
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: ens-data
+  cancel-in-progress: false
+jobs:
+  today:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - run: pip install -r requirements.txt
+      - run: |
+          TODAY=$(date -u +%F)
+          python ens_fetch.py --start $TODAY --end $TODAY --out data
+      - name: commit
+        run: |
+          git config user.name "hrsolar-ens"
+          git config user.email "actions@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || git commit -m "daily $(date -u +%F)"
+          git pull --rebase --quiet && git push --quiet
