@@ -38,19 +38,20 @@ class Slow(Exception):
     pass
 
 
-def get(session, url, headers=None, tries=8, timeout=120):
-    """GET with backoff on 429/5xx and connection errors; None on 404."""
+def get(session, url, headers=None, tries=10, timeout=(30, 300)):
+    """GET with backoff on 429/5xx and connection errors; None on 404. The body is read in full
+    before returning (a range of 56 MB), so a stalled transfer counts as a failed attempt."""
     for attempt in range(tries):
         try:
             r = session.get(url, headers=headers or {}, timeout=timeout)
-        except requests.RequestException:
-            r = None
-        if r is not None:
             if r.status_code in (200, 206):
+                r.content  # noqa: B018 -- force the full read inside the try
                 return r
             if r.status_code == 404:
                 return None
-        wait = min(120, 2 ** attempt + random.random() * 2)
+        except requests.RequestException:
+            pass
+        wait = min(180, 3 * 2 ** attempt + random.random() * 3)
         time.sleep(wait)
     raise Slow(f"gave up on {url}")
 
@@ -207,7 +208,11 @@ def main(argv=None):
         rows = []
         ok = True
         for step in STEPS:
-            got = fetch_step(session, day, step, params, coords, point_ids)
+            try:
+                got = fetch_step(session, day, step, params, coords, point_ids)
+            except Slow as exc:            # a day that will not come today: skip it, a later run fills it
+                print(f"{day} step {step}: {exc}", flush=True)
+                got = None
             time.sleep(args.pause)
             if got is None:
                 ok = False; break
