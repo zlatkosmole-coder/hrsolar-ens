@@ -5,6 +5,7 @@ on:
       start: {description: "first run day (YYYY-MM-DD)", required: true, default: "2024-03-01"}
       end: {description: "last run day (YYYY-MM-DD, inclusive)", required: true}
       chunk_days: {description: "days per job", required: false, default: "30"}
+      ranges: {description: "optional repair list start:end,start:end (overrides start/end)", required: false, default: ""}
 permissions:
   contents: write
 concurrency:
@@ -20,10 +21,17 @@ jobs:
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import datetime as dt, json
-          s=dt.date.fromisoformat("${{ inputs.start }}"); e=dt.date.fromisoformat("${{ inputs.end }}"); n=int("${{ inputs.chunk_days }}")
-          chunks=[]; d=s
-          while d<=e:
-              f=min(e, d+dt.timedelta(days=n-1)); chunks.append({"start":d.isoformat(),"end":f.isoformat()}); d=f+dt.timedelta(days=1)
+          n=int("${{ inputs.chunk_days }}")
+          raw="${{ inputs.ranges }}".strip()
+          pairs=[(dt.date.fromisoformat(a), dt.date.fromisoformat(b)) for a,b in (x.split(":") for x in raw.split(",") if x)] if raw else [(dt.date.fromisoformat("${{ inputs.start }}"), dt.date.fromisoformat("${{ inputs.end }}"))]
+          chunks=[]
+          for s,e in pairs:
+              d=s
+              while d<=e:
+                  f=min(e, d+dt.timedelta(days=n-1)); chunks.append({"start":d.isoformat(),"end":f.isoformat()}); d=f+dt.timedelta(days=1)
+          # at most 200 matrix jobs: merge the smallest neighbours if needed
+          while len(chunks) > 200:
+              chunks=[{"start":chunks[i]["start"],"end":chunks[i+1]["end"] if i+1 < len(chunks) else chunks[i]["end"]} for i in range(0,len(chunks),2)]
           print("chunks="+json.dumps(chunks))
           PY
   fetch:
