@@ -8,7 +8,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: ens-data
+  group: ens-daily
   cancel-in-progress: false
 jobs:
   today:
